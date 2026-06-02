@@ -2487,7 +2487,7 @@ Write 2–3 clear sentences with a practical Indian market example. No table, no
     // ════════════════════════════════════════════════════════
     // MESSAGE PERSISTENCE (Problem 1 fix)
     // ════════════════════════════════════════════════════════
-    const LS_CHAT = 'prism_chat_v1';
+    const LS_CHAT = `prism_chat_v1_${CLIENT_ID}`;
 
     function saveChatMessage(sessionId, entry) {
       try {
@@ -2555,10 +2555,25 @@ Write 2–3 clear sentences with a practical Indian market example. No table, no
 
     // ════════════════════════════════════════════════════════
     // LOCALSTORAGE PERSISTENCE
+    // Each visitor gets a unique client ID so their data is
+    // completely isolated from other users on the same domain.
     // ════════════════════════════════════════════════════════
-    const LS_SESSIONS = 'prism_sessions';
-    const LS_STATE    = 'prism_state';
-    const LS_COUNTERS = 'prism_counters';
+
+    // Generate or retrieve a stable unique ID for this browser
+    (function ensureClientId() {
+      if (!localStorage.getItem('prism_client_id')) {
+        localStorage.setItem(
+          'prism_client_id',
+          'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+        );
+      }
+    })();
+    const CLIENT_ID = localStorage.getItem('prism_client_id');
+
+    // All keys are namespaced — different visitors never collide
+    const LS_SESSIONS = `prism_sessions_${CLIENT_ID}`;
+    const LS_STATE    = `prism_state_${CLIENT_ID}`;
+    const LS_COUNTERS = `prism_counters_${CLIENT_ID}`;
 
     function persistSave() {
       try {
@@ -2640,7 +2655,7 @@ Write 2–3 clear sentences with a practical Indian market example. No table, no
     // ════════════════════════════════════════════════════════
     // ONBOARDING
     // ════════════════════════════════════════════════════════
-    const LS_ONBOARDED = 'prism_onboarded';
+    const LS_ONBOARDED = `prism_onboarded_${CLIENT_ID}`;
     let onboardStep = 0;
     const TOTAL_STEPS = 4;
 
