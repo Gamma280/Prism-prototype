@@ -1,0 +1,2772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prism — Claim Evaluation Layer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+
+    /* ── Tokens ── */
+    :root {
+      --bg:             #f0ece5;
+      --sidebar-border: #ddd8d0;
+      --surface:        #ffffff;
+      --text:           #1a1916;
+      --text-muted:     #6b6760;
+      --text-light:     #9e9a94;
+      --border:         #ddd8d0;
+      --prism-accent:   #7c3aed;
+      --prism-light:    #ede9fe;
+      --prism-star:     #c2410c;
+      --chip-bg:        rgba(255,255,255,0.85);
+      --verified:       #16a34a;
+      --flag-red:       #dc2626;
+      --flag-yellow:    #d97706;
+      --assumes-bg:     #fefce8;
+      --assumes-border: #fde68a;
+      --shadow-input:   0 2px 12px rgba(0,0,0,.07), 0 1px 3px rgba(0,0,0,.05);
+      --shadow-chip:    0 1px 3px rgba(0,0,0,.06);
+      --radius-sm:      6px;
+      --radius-md:      12px;
+      --radius-lg:      16px;
+      --radius-xl:      22px;
+      --font:           'Inter', system-ui, sans-serif;
+      --font-serif:     'Lora', Georgia, serif;
+      --sidebar-w:      260px;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* ════════════════════════════════
+       SIDEBAR
+    ════════════════════════════════ */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--sidebar-border);
+      padding: 12px 0 16px;
+      height: 100%;
+      background: var(--bg);
+    }
+
+    /* brand row */
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 14px 10px;
+    }
+
+    .brand-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.03em;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .brand-logo-img {
+      width: 26px; height: 26px;
+      object-fit: contain; flex-shrink: 0;
+    }
+
+    /* ── Greeting logo ── */
+    .greeting-logo {
+      width: 46px; height: 46px;
+      object-fit: contain; flex-shrink: 0;
+      animation: star-spin 12s linear infinite;
+    }
+
+    /* ── Model selector dropdown ── */
+    .model-selector { position: relative; }
+
+    .model-btn {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 12.5px; color: var(--text-muted);
+      background: none; border: none; cursor: pointer;
+      padding: 3px 6px; border-radius: var(--radius-sm);
+      font-family: var(--font); transition: background 0.12s;
+    }
+    .model-btn:hover { background: rgba(0,0,0,.05); color: var(--text); }
+    .model-btn .model-display { font-weight: 500; color: var(--text); }
+    .model-btn svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; transition: transform 0.15s; flex-shrink: 0; }
+    .model-selector.open .model-btn svg { transform: rotate(180deg); }
+
+    .model-dropdown {
+      position: absolute; bottom: calc(100% + 8px); right: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 24px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.06);
+      min-width: 180px; overflow: hidden; z-index: 50;
+      opacity: 0; transform: translateY(6px);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      pointer-events: none;
+    }
+    .model-selector.open .model-dropdown { opacity: 1; transform: translateY(0); pointer-events: all; }
+
+    .model-option {
+      display: flex; flex-direction: column; align-items: flex-start;
+      width: 100%; padding: 9px 14px; background: none; border: none;
+      cursor: pointer; font-family: var(--font); text-align: left;
+      transition: background 0.1s; gap: 1px;
+    }
+    .model-option:hover { background: var(--bg); }
+    .model-option.active { background: var(--prism-light); }
+    .model-opt-name { font-size: 13px; font-weight: 500; color: var(--text); }
+    .model-opt-desc { font-size: 11px; color: var(--text-light); }
+    .model-option.active .model-opt-name { color: var(--prism-accent); }
+
+    .sidebar-icons {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .icon-btn {
+      width: 30px; height: 30px;
+      border: none; background: transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted);
+      transition: background 0.15s, color 0.15s;
+    }
+    .icon-btn:hover { background: rgba(0,0,0,.06); color: var(--text); }
+    .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* nav */
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 0 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 450;
+      color: var(--text-muted);
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+      transition: background 0.12s, color 0.12s;
+      text-decoration: none;
+      position: relative;
+    }
+
+    .nav-item:hover { background: rgba(0,0,0,.05); color: var(--text); }
+    .nav-item.active { background: rgba(0,0,0,.07); color: var(--text); font-weight: 500; }
+
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    .nav-new-chat {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 450;
+      color: var(--text-muted);
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+      transition: background 0.12s, color 0.12s;
+      margin-bottom: 6px;
+    }
+    .nav-new-chat:hover { background: rgba(0,0,0,.05); color: var(--text); }
+
+    .new-chat-circle {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid var(--text-light);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px; line-height: 1;
+      color: var(--text-muted);
+    }
+
+    .upgrade-tag {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--prism-accent);
+      border: 1px solid #ddd6fe;
+      border-radius: 20px;
+      padding: 2px 8px;
+      background: var(--prism-light);
+    }
+
+    /* section labels */
+    .sidebar-section {
+      padding: 18px 18px 6px;
+    }
+
+    .section-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-light);
+      letter-spacing: 0.01em;
+    }
+
+    .sidebar-spacer { flex: 1; }
+
+    /* footer */
+    .sidebar-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 8px;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .user-avatar {
+      width: 32px; height: 32px;
+      background: #1a1916;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .avatar-dot {
+      position: absolute;
+      bottom: 0; right: 0;
+      width: 8px; height: 8px;
+      background: #2563eb;
+      border-radius: 50%;
+      border: 1.5px solid var(--bg);
+    }
+
+    .user-name { font-size: 13.5px; font-weight: 500; color: var(--text); }
+    .user-plan { font-size: 11.5px; color: var(--text-light); }
+
+    .footer-actions {
+      display: flex; gap: 2px;
+    }
+
+    /* ════════════════════════════════
+       MAIN AREA
+    ════════════════════════════════ */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* top bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 20px;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .plan-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,0,0,.05);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .plan-pill .divider { opacity: 0.4; }
+
+    .plan-upgrade {
+      color: var(--text);
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .plan-upgrade:hover { text-decoration: underline; }
+
+    .top-bar-right {
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    /* ════════════════════════════════
+       WELCOME VIEW
+    ════════════════════════════════ */
+    .welcome-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0 24px 60px;
+      gap: 0;
+    }
+
+    .welcome-view.hidden { display: none; }
+
+    /* greeting */
+    .greeting-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 36px;
+    }
+
+    .prism-star {
+      font-size: 42px;
+      color: var(--prism-star);
+      line-height: 1;
+      font-weight: 400;
+      animation: star-spin 12s linear infinite;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    @keyframes star-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    .greeting-text {
+      font-family: var(--font-serif);
+      font-size: 36px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+
+    /* center input box */
+    .center-input-wrap {
+      width: 100%;
+      max-width: 700px;
+    }
+
+    .center-input-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-input);
+      overflow: hidden;
+    }
+
+    .center-input {
+      width: 100%;
+      border: none;
+      outline: none;
+      resize: none;
+      font-family: var(--font);
+      font-size: 15px;
+      color: var(--text);
+      background: transparent;
+      padding: 18px 20px 10px;
+      line-height: 1.55;
+      min-height: 60px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .center-input::placeholder { color: var(--text-light); }
+    .center-input::-webkit-scrollbar { width: 3px; }
+    .center-input::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    .input-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 14px;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .attach-btn {
+      width: 30px; height: 30px;
+      border: 1.5px solid var(--border);
+      border-radius: 50%;
+      background: transparent;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted);
+      font-size: 18px; line-height: 1;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .attach-btn:hover { border-color: var(--text-muted); color: var(--text); }
+
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .model-label {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 3px 6px;
+      border-radius: var(--radius-sm);
+      transition: background 0.12s;
+    }
+    .model-label:hover { background: rgba(0,0,0,.05); }
+    .model-label .model-name { font-weight: 500; color: var(--text); }
+    .model-label svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+    .toolbar-icon-btn {
+      width: 28px; height: 28px;
+      border: none; background: transparent;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--text-light);
+      border-radius: var(--radius-sm);
+      transition: color 0.12s, background 0.12s;
+    }
+    .toolbar-icon-btn:hover { color: var(--text-muted); background: rgba(0,0,0,.05); }
+    .toolbar-icon-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    .send-btn-round {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: var(--text);
+      color: var(--bg);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0.3;
+      transition: opacity 0.15s, background 0.15s, transform 0.1s;
+      flex-shrink: 0;
+    }
+    .send-btn-round.active { opacity: 1; }
+    .send-btn-round.active:hover { background: #333; transform: scale(1.05); }
+    .send-btn-round svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* suggestion chips */
+    .suggestion-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 16px;
+      max-width: 700px;
+      width: 100%;
+    }
+
+    .chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--chip-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 450;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s;
+      box-shadow: var(--shadow-chip);
+      white-space: nowrap;
+    }
+
+    .chip:hover {
+      border-color: var(--prism-accent);
+      color: var(--prism-accent);
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(124,58,237,.12);
+    }
+
+    .chip svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ════════════════════════════════
+       CHAT VIEW
+    ════════════════════════════════ */
+    .chat-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-view.hidden { display: none; }
+
+    .chat-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 24px 16px;
+      scroll-behavior: smooth;
+    }
+
+    .chat-scroll::-webkit-scrollbar { width: 5px; }
+    .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+    .chat-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    .chat-column {
+      max-width: 680px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    /* message rows */
+    .message-row { display: flex; gap: 12px; align-items: flex-start; }
+    .message-row.user { flex-direction: row-reverse; }
+
+    .avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600;
+      margin-top: 3px;
+    }
+
+    .avatar.assistant {
+      background: linear-gradient(135deg, var(--prism-accent), #a78bfa);
+      color: #fff;
+      font-size: 11px;
+    }
+
+    .avatar.user {
+      background: #1a1916;
+      color: #fff;
+      font-size: 11.5px;
+    }
+
+    .bubble-wrap { display: flex; flex-direction: column; gap: 4px; max-width: calc(100% - 40px); }
+    .message-row.user .bubble-wrap { align-items: flex-end; }
+
+    .bubble.user {
+      background: rgba(0,0,0,.07);
+      border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+      padding: 11px 15px;
+      font-size: 14.5px;
+      line-height: 1.55;
+      color: var(--text);
+      max-width: 480px;
+    }
+
+    .bubble.assistant {
+      font-size: 14.5px;
+      line-height: 1.7;
+      color: var(--text);
+      max-width: 100%;
+    }
+
+    .bubble.assistant p { margin-bottom: 12px; }
+    .bubble.assistant p:last-child { margin-bottom: 0; }
+
+    /* typing indicator */
+    .typing-wrap { display: flex; gap: 12px; align-items: flex-start; }
+
+    .typing-dots {
+      display: flex; align-items: center; gap: 4px;
+      padding: 14px 4px;
+    }
+
+    .typing-dot {
+      width: 6px; height: 6px;
+      background: var(--text-light);
+      border-radius: 50%;
+      animation: typing-bounce 1.2s ease-in-out infinite;
+    }
+
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typing-bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+      30%            { transform: translateY(-5px); opacity: 1; }
+    }
+
+    /* ── Message entrance animation ── */
+    @keyframes msg-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .message-row {
+      animation: msg-in 0.22s ease forwards;
+    }
+
+    /* ── Flag button ── */
+    .flag-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 19px; height: 19px;
+      border-radius: 50%; border: none;
+      cursor: pointer; font-size: 11px; line-height: 1;
+      vertical-align: middle; margin-left: 5px;
+      position: relative; top: -1px;
+      transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
+      flex-shrink: 0;
+    }
+    .flag-btn:hover { transform: scale(1.2); }
+    .flag-btn:focus-visible { outline: 2px solid var(--prism-accent); outline-offset: 2px; }
+    .flag-btn.quantitative { background: #fee2e2; color: var(--flag-red); }
+    .flag-btn.recent { background: #fef3c7; color: var(--flag-yellow); }
+    .flag-btn.verified {
+      background: #dcfce7; color: var(--verified); cursor: default;
+      animation: check-pop 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    }
+
+    @keyframes check-pop {
+      0%   { transform: scale(0.6); }
+      60%  { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+
+    /* ── Verify progress ── */
+    .verify-progress { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .progress-label { font-size: 12px; font-weight: 500; color: var(--text-muted); display: flex; justify-content: space-between; }
+    .progress-track { height: 3px; background: var(--border); border-radius: 10px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--prism-accent), #a78bfa); border-radius: 10px; transition: width 0.4s cubic-bezier(0.4,0,0.2,1); }
+
+    @keyframes banner-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .all-verified-banner {
+      margin-top: 16px; display: flex; align-items: center; gap: 8px;
+      background: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: var(--radius-md); padding: 10px 14px;
+      font-size: 13px; font-weight: 500; color: #166534;
+      animation: banner-in 0.3s ease forwards;
+    }
+
+    /* ── Send button loading spinner ── */
+    @keyframes btn-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .send-btn-round.loading {
+      opacity: 1 !important;
+      background: transparent !important;
+      border: 2px solid var(--border);
+      border-top-color: var(--text);
+      animation: btn-spin 0.7s linear infinite;
+      pointer-events: none;
+    }
+
+    .send-btn-round.loading svg { display: none; }
+
+    /* ── Prism Assumes panel ── */
+    .prism-assumes {
+      margin-top: 16px;
+      background: var(--assumes-bg);
+      border: 1px solid var(--assumes-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .prism-assumes summary {
+      cursor: pointer; list-style: none;
+      padding: 10px 14px;
+      font-size: 12.5px; font-weight: 600; color: #92400e;
+      display: flex; align-items: center; gap: 6px;
+      user-select: none;
+    }
+
+    .prism-assumes summary::-webkit-details-marker { display: none; }
+
+    .prism-assumes summary::after {
+      content: '▾'; margin-left: auto; font-size: 11px;
+      transition: transform 0.2s;
+    }
+
+    .prism-assumes[open] summary::after { transform: rotate(180deg); }
+
+    .assumes-body { padding: 0 14px 12px; border-top: 1px solid var(--assumes-border); }
+
+    .assumes-list { list-style: none; margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+
+    .assumes-list li {
+      font-size: 12.5px; color: #78350f;
+      display: flex; align-items: flex-start; gap: 7px; line-height: 1.5;
+    }
+
+    .assumes-list li::before { content: '·'; font-size: 18px; line-height: 1; color: #d97706; flex-shrink: 0; }
+
+    .missing-label { font-size: 12px; font-weight: 600; color: #92400e; margin-top: 12px; margin-bottom: 4px; }
+
+    /* ── Quiet label ── */
+    .quiet-label { margin-top: 10px; font-size: 12px; color: var(--text-light); font-style: italic; display: flex; align-items: center; gap: 5px; }
+
+    /* ── Verify note line ── */
+    .bubble.assistant .prose .verify-note {
+      margin-top: 10px; padding: 7px 11px;
+      background: #f8f4ff; border-left: 3px solid var(--prism-accent);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: 12.5px; color: var(--text-muted);
+    }
+
+    /* ── Section header inside response ── */
+    .bubble.assistant .prose .resp-header {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      margin: 14px 0 6px; letter-spacing: -0.01em;
+      padding-bottom: 4px; border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Sub-header (Positive drivers / Headwinds) ── */
+    .bubble.assistant .prose .resp-subheader {
+      font-size: 12.5px; font-weight: 600; color: var(--text-muted);
+      margin: 10px 0 4px;
+    }
+
+    /* ── Data table ── */
+    .bubble.assistant .prose .resp-table-wrap {
+      overflow-x: auto; margin: 10px 0;
+    }
+    .bubble.assistant .prose .resp-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .bubble.assistant .prose .resp-table th {
+      background: var(--bg); color: var(--text-muted);
+      font-weight: 600; font-size: 11.5px; text-align: left;
+      padding: 6px 12px; border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    .bubble.assistant .prose .resp-table td {
+      padding: 6px 12px; border-bottom: 1px solid var(--border);
+      color: var(--text); vertical-align: middle;
+    }
+    .bubble.assistant .prose .resp-table tr:last-child td { border-bottom: none; }
+    .bubble.assistant .prose .resp-table tr:hover td { background: var(--bg); }
+
+    /* ── Sources block ── */
+    .bubble.assistant .prose .resp-sources {
+      margin-top: 14px; padding: 10px 13px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 12px; color: var(--text-muted); line-height: 1.6;
+    }
+    .bubble.assistant .prose .resp-sources strong { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* ── Bottom input bar (chat view) ── */
+    .bottom-input-area {
+      flex-shrink: 0;
+      padding: 10px 24px 18px;
+    }
+
+    .bottom-input-inner { max-width: 680px; margin: 0 auto; }
+
+    .bottom-input-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-input);
+      overflow: hidden;
+    }
+
+    .bottom-input {
+      width: 100%; border: none; outline: none; resize: none;
+      font-family: var(--font); font-size: 15px; color: var(--text);
+      background: transparent; padding: 14px 18px 8px;
+      line-height: 1.55; max-height: 140px; overflow-y: auto;
+    }
+
+    .bottom-input::placeholder { color: var(--text-light); }
+
+    .bottom-input-footer { font-size: 11px; color: var(--text-light); text-align: center; padding: 8px 0 0; }
+
+    /* ════════════════════════════════
+       TOOLTIP
+    ════════════════════════════════ */
+    #tooltip {
+      position: fixed; z-index: 200;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 24px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.06);
+      padding: 14px 16px;
+      width: 288px;
+      opacity: 0; pointer-events: none;
+      transform: translateY(6px);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    #tooltip.visible { opacity: 1; pointer-events: all; transform: translateY(0); }
+
+    .tooltip-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11.5px; font-weight: 600;
+      border-radius: 20px; padding: 3px 9px;
+      margin-bottom: 10px;
+    }
+    .tooltip-chip.quantitative { background: #fee2e2; color: #991b1b; }
+    .tooltip-chip.recent { background: #fef3c7; color: #92400e; }
+
+    .tooltip-action { font-size: 13px; color: var(--text); line-height: 1.5; margin-bottom: 8px; }
+
+    .tooltip-source {
+      font-size: 12px; color: var(--text-muted);
+      margin-bottom: 12px; display: flex; align-items: flex-start; gap: 5px;
+    }
+    .tooltip-source::before { content: '↗'; flex-shrink: 0; color: var(--text-light); }
+
+    .mark-verified-btn {
+      width: 100%; padding: 9px 0;
+      background: var(--text); color: var(--bg);
+      border: none; border-radius: var(--radius-sm);
+      font-family: var(--font); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .mark-verified-btn:hover { opacity: 0.85; }
+
+    /* ── Error bubble ── */
+    .bubble.error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm);
+      padding: 13px 16px;
+      font-size: 13.5px;
+      color: #991b1b;
+      display: flex; align-items: flex-start; gap: 9px;
+    }
+
+    .bubble.error svg { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; margin-top: 1px; }
+
+    .key-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 500;
+      background: var(--prism-light); color: var(--prism-accent);
+      border: 1px solid #ddd6fe; border-radius: 20px;
+      padding: 2px 8px; cursor: pointer;
+      margin-left: 6px; vertical-align: middle;
+      transition: background 0.12s;
+    }
+    .key-chip:hover { background: #ddd6fe; }
+
+    /* ── Session items in sidebar ── */
+    .session-list { display: flex; flex-direction: column; gap: 1px; padding: 0 8px; }
+
+    .session-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 10px; border-radius: var(--radius-sm);
+      cursor: pointer; transition: background 0.12s;
+      min-width: 0;
+    }
+    .session-item:hover { background: rgba(0,0,0,.05); }
+    .session-item.active { background: rgba(0,0,0,.07); }
+
+    .session-title {
+      flex: 1; font-size: 13px; color: var(--text-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .session-item.active .session-title { color: var(--text); font-weight: 500; }
+
+    .star-btn {
+      background: none; border: none; cursor: pointer;
+      font-size: 14px; color: var(--text-light); flex-shrink: 0;
+      line-height: 1; padding: 2px; transition: color 0.12s, transform 0.15s;
+    }
+    .star-btn:hover { color: #d97706; transform: scale(1.2); }
+    .star-btn.starred { color: #d97706; }
+
+    /* ── Chip dialog ── */
+    .chip-dialog {
+      position: absolute; bottom: calc(100% + 12px); left: 0; right: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+      padding: 14px 16px; z-index: 20;
+      animation: msg-in 0.18s ease forwards;
+    }
+    .chip-dialog.hidden { display: none; }
+
+    .chip-dialog-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .chip-dialog-label { font-size: 13px; font-weight: 600; color: var(--text); }
+    .chip-dialog-hint { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+
+    .chip-dialog-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 18px; color: var(--text-light); line-height: 1;
+      transition: color 0.12s;
+    }
+    .chip-dialog-close:hover { color: var(--text); }
+
+    .chip-dialog-row {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .chip-dialog-input {
+      flex: 1; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      padding: 8px 12px; font-family: var(--font); font-size: 13.5px;
+      color: var(--text); background: var(--bg); outline: none;
+      transition: border-color 0.15s;
+    }
+    .chip-dialog-input:focus { border-color: var(--prism-accent); }
+    .chip-dialog-input::placeholder { color: var(--text-light); }
+
+    .chip-dialog-go {
+      padding: 8px 16px; background: var(--text); color: var(--bg);
+      border: none; border-radius: var(--radius-sm); font-family: var(--font);
+      font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .chip-dialog-go:hover { opacity: 0.85; }
+
+    /* ── Claims view ── */
+    .claims-view {
+      flex: 1; overflow-y: auto; padding: 28px 24px;
+      display: flex; flex-direction: column; gap: 0;
+    }
+    .claims-view.hidden { display: none; }
+
+    .claims-header {
+      font-size: 20px; font-weight: 600; color: var(--text);
+      letter-spacing: -0.02em; margin-bottom: 20px; padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .claims-empty {
+      text-align: center; color: var(--text-light);
+      font-size: 14px; margin-top: 40px;
+    }
+
+    .claim-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-md); padding: 14px 16px;
+      margin-bottom: 10px; display: flex; align-items: flex-start; gap: 12px;
+    }
+
+    .claim-status-icon {
+      font-size: 16px; flex-shrink: 0; margin-top: 1px;
+    }
+
+    .claim-card-body { flex: 1; min-width: 0; }
+    .claim-text { font-size: 13.5px; color: var(--text); line-height: 1.55; margin-bottom: 4px; }
+    .claim-meta { font-size: 11.5px; color: var(--text-light); display: flex; gap: 8px; flex-wrap: wrap; }
+    .claim-type-tag {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 11px; font-weight: 500; border-radius: 20px; padding: 2px 8px;
+    }
+    .claim-type-tag.quantitative { background: #fee2e2; color: #991b1b; }
+    .claim-type-tag.recent { background: #fef3c7; color: #92400e; }
+
+    /* ── Image attachment ── */
+    .image-preview-wrap {
+      padding: 8px 16px 0; display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap;
+    }
+    .image-thumb {
+      position: relative; width: 60px; height: 60px;
+      border-radius: var(--radius-sm); overflow: hidden;
+      border: 1px solid var(--border); flex-shrink: 0;
+    }
+    .image-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .image-thumb-remove {
+      position: absolute; top: 2px; right: 2px;
+      background: rgba(0,0,0,.6); color: #fff;
+      border: none; border-radius: 50%; width: 16px; height: 16px;
+      font-size: 10px; cursor: pointer; display: flex;
+      align-items: center; justify-content: center; line-height: 1;
+    }
+
+    /* ── Readable prose in assistant bubble ── */
+    .bubble.assistant .prose { line-height: 1.7; }
+    .bubble.assistant .prose strong { font-weight: 600; color: var(--text); }
+    .bubble.assistant .prose ul { list-style: none; margin: 8px 0; display: flex; flex-direction: column; gap: 5px; }
+    .bubble.assistant .prose ul li { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; }
+    .bubble.assistant .prose ul li::before { content: '·'; color: var(--prism-accent); font-size: 18px; line-height: 1.2; flex-shrink: 0; }
+    .bubble.assistant .prose p { margin-bottom: 10px; font-size: 14px; }
+    .bubble.assistant .prose p:last-child { margin-bottom: 0; }
+    .bubble.assistant .tldr {
+      background: var(--prism-light); border-left: 3px solid var(--prism-accent);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 8px 12px; margin-bottom: 12px;
+      font-size: 13px; font-weight: 500; color: var(--prism-accent);
+    }
+
+    /* ── Hamburger (mobile only) ── */
+    .hamburger-btn {
+      display: none; align-items: center; justify-content: center;
+      width: 34px; height: 34px;
+      border: none; background: transparent; cursor: pointer;
+      border-radius: var(--radius-sm); color: var(--text-muted);
+      transition: background 0.12s;
+    }
+    .hamburger-btn:hover { background: rgba(0,0,0,.06); }
+    .hamburger-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+    /* ── Sidebar backdrop (mobile) ── */
+    .sidebar-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.35); z-index: 199;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-backdrop.visible { display: block; }
+
+    /* ── Onboarding modal ── */
+    .onboard-overlay {
+      position: fixed; inset: 0; z-index: 400;
+      background: rgba(0,0,0,.5); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .onboard-overlay.hidden { display: none; }
+
+    .onboard-card {
+      background: var(--surface); border-radius: var(--radius-lg);
+      box-shadow: 0 24px 60px rgba(0,0,0,.2);
+      padding: 28px 26px 24px; width: 100%; max-width: 400px;
+    }
+
+    .onboard-step { display: none; }
+    .onboard-step.active { display: block; }
+
+    .onboard-icon {
+      font-size: 32px; margin-bottom: 12px; line-height: 1;
+    }
+
+    .onboard-title {
+      font-size: 17px; font-weight: 600; color: var(--text);
+      margin-bottom: 8px; letter-spacing: -0.02em;
+    }
+
+    .onboard-body {
+      font-size: 13.5px; color: var(--text-muted); line-height: 1.65;
+      margin-bottom: 20px;
+    }
+
+    .onboard-body strong { color: var(--text); }
+
+    .onboard-example {
+      background: var(--bg); border-radius: var(--radius-sm);
+      padding: 10px 13px; margin: 10px 0;
+      font-size: 13px; line-height: 1.55; color: var(--text);
+    }
+
+    .onboard-dots {
+      display: flex; gap: 6px; justify-content: center; margin-bottom: 18px;
+    }
+
+    .onboard-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--border); transition: background 0.2s;
+    }
+    .onboard-dot.active { background: var(--prism-accent); }
+
+    .onboard-actions {
+      display: flex; gap: 8px; justify-content: flex-end;
+    }
+
+    .onboard-skip {
+      background: none; border: none; font-family: var(--font);
+      font-size: 13px; color: var(--text-light); cursor: pointer;
+      padding: 9px 12px; border-radius: var(--radius-sm);
+      transition: color 0.12s;
+    }
+    .onboard-skip:hover { color: var(--text-muted); }
+
+    .onboard-next {
+      background: var(--text); color: var(--bg);
+      border: none; font-family: var(--font);
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      padding: 9px 20px; border-radius: var(--radius-sm);
+      transition: opacity 0.15s;
+    }
+    .onboard-next:hover { opacity: 0.85; }
+
+    /* ── Claim highlight (jump target) ── */
+    .claim-highlight {
+      background: #fef9c3;
+      border-radius: 3px;
+      transition: background 1.5s ease;
+    }
+
+    .jump-to-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11.5px; font-weight: 500;
+      color: var(--prism-accent); background: var(--prism-light);
+      border: 1px solid #ddd6fe; border-radius: 20px;
+      padding: 3px 10px; cursor: pointer; margin-left: 8px;
+      transition: background 0.12s;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .jump-to-btn:hover { background: #ddd6fe; }
+
+    /* ════════════════════════════════
+       RESPONSIVE
+    ════════════════════════════════ */
+    @media (max-width: 700px) {
+      /* Sidebar becomes a slide-in drawer */
+      .sidebar {
+        position: fixed; left: calc(-1 * var(--sidebar-w) - 10px);
+        top: 0; bottom: 0; z-index: 200;
+        transition: left 0.25s cubic-bezier(0.4,0,0.2,1);
+        box-shadow: none;
+      }
+      .sidebar.mobile-open {
+        left: 0;
+        box-shadow: 4px 0 32px rgba(0,0,0,.18);
+      }
+
+      .hamburger-btn { display: flex; }
+      .top-bar { justify-content: space-between; padding: 10px 14px; }
+      .top-bar-right { position: static; transform: none; }
+
+      .greeting-text { font-size: 22px; }
+      .greeting-logo { width: 34px; height: 34px; }
+      .greeting-row { gap: 10px; }
+
+      /* Chips scroll horizontally */
+      .suggestion-chips {
+        flex-wrap: nowrap; overflow-x: auto;
+        justify-content: flex-start; padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      }
+      .suggestion-chips::-webkit-scrollbar { display: none; }
+
+      .chat-scroll { padding: 16px 12px 10px; }
+      .bottom-input-area { padding: 8px 12px 14px; }
+
+      .bubble.user  { max-width: 85vw; }
+      .bubble.assistant { font-size: 14px; }
+
+      .center-input-wrap { max-width: 100%; }
+      .welcome-view { padding: 0 16px 40px; }
+
+      #tooltip {
+        position: fixed; bottom: 76px;
+        left: 10px; right: 10px;
+        width: auto; top: auto;
+      }
+
+      .onboard-card { padding: 22px 18px 18px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ════════════════════════════════
+       SIDEBAR
+  ════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-name">
+        <img src="Image/Claudelogo.png" class="brand-logo-img" alt="Claude" />
+        Claude
+      </div>
+      <div class="sidebar-icons">
+        <button class="icon-btn" aria-label="Search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="Toggle panel">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-nav">
+      <button class="nav-new-chat" id="newChatBtn">
+        <div class="new-chat-circle">+</div>
+        New chat
+      </button>
+      <button class="nav-item active" id="navChats">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Chats
+      </button>
+      <button class="nav-item">
+        <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Projects
+      </button>
+      <button class="nav-item" id="navVerifiedClaims">
+        <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        Verified Claims
+      </button>
+      <button class="nav-item">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Prism Settings
+        <span class="upgrade-tag">Beta</span>
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Starred</div>
+      <div id="starredList" class="session-list"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="section-label">Recents</div>
+      <div id="recentsList" class="session-list"></div>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar">
+          G
+          <span class="avatar-dot"></span>
+        </div>
+        <div>
+          <div class="user-name">Guest</div>
+          <div class="user-plan">Free plan</div>
+        </div>
+      </div>
+      <div class="footer-actions">
+        <button class="icon-btn" aria-label="Export">
+          <svg viewBox="0 0 24 24" style="stroke-width:1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="More">
+          <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ════════════════════════════════
+       MAIN AREA
+  ════════════════════════════════ -->
+  <div class="main">
+
+    <!-- top bar -->
+    <div class="top-bar">
+      <button class="hamburger-btn" id="hamburgerBtn" aria-label="Open menu">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="plan-pill">
+        Prism Beta
+        <span class="divider">·</span>
+        <span class="plan-upgrade">Active</span>
+      </div>
+      <div class="top-bar-right">
+        <button class="icon-btn" id="helpBtn" aria-label="How to use Prism">
+          <svg viewBox="0 0 24 24" style="stroke-width:1.6"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── CLAIMS VIEW ── -->
+    <div class="claims-view hidden" id="claimsView">
+      <div class="claims-header">Verified Claims</div>
+      <div id="claimsList"></div>
+    </div>
+
+    <!-- ── WELCOME VIEW ── -->
+    <div class="welcome-view" id="welcomeView">
+
+      <div class="greeting-row">
+        <img src="Image/Claudelogo.png" class="greeting-logo" alt="" />
+        <h1 class="greeting-text" id="greetingText">Good morning,</h1>
+      </div>
+
+      <!-- hidden file input for image upload -->
+      <input type="file" id="fileInput" accept="image/*" style="display:none" multiple />
+
+      <div class="center-input-wrap" style="position:relative">
+        <div class="center-input-box">
+          <textarea
+            id="welcomeInput"
+            class="center-input"
+            placeholder="Ask a research question…"
+            rows="2"
+            aria-label="Chat input"
+          ></textarea>
+          <div id="imagePreviewWelcome" class="image-preview-wrap" style="display:none"></div>
+          <div class="input-toolbar">
+            <div class="toolbar-left">
+              <button class="attach-btn" aria-label="Attach" onclick="document.getElementById('fileInput').click()">+</button>
+            </div>
+            <div class="toolbar-right">
+              <div class="model-selector" id="modelSelectorWelcome">
+                <button class="model-btn" type="button" aria-label="Select model">
+                  Groq&nbsp;·&nbsp;<span class="model-display">High</span>
+                  <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="model-dropdown">
+                  <button class="model-option active" data-model="llama-3.3-70b-versatile" data-label="High">
+                    <span class="model-opt-name">Opus</span>
+                    <span class="model-opt-desc">Most capable · llama-3.3-70b</span>
+                  </button>
+                  <button class="model-option" data-model="llama3-70b-8192" data-label="Medium">
+                    <span class="model-opt-name">Sonnet</span>
+                    <span class="model-opt-desc">Balanced · llama3-70b</span>
+                  </button>
+                  <button class="model-option" data-model="llama3-8b-8192" data-label="Low">
+                    <span class="model-opt-name">Haiku</span>
+                    <span class="model-opt-desc">Fastest · llama3-8b</span>
+                  </button>
+                </div>
+              </div>
+              <button class="toolbar-icon-btn" aria-label="Voice">
+                <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+              <button class="send-btn-round" id="welcomeSendBtn" aria-label="Send" disabled>
+                <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+        <!-- chip dialog -->
+        <div class="chip-dialog hidden" id="chipDialog">
+          <div class="chip-dialog-header">
+            <span class="chip-dialog-label" id="chipDialogLabel">Verify Margins</span>
+            <button class="chip-dialog-close" onclick="closeChipDialog()">×</button>
+          </div>
+          <p class="chip-dialog-hint" id="chipDialogHint">Enter details below</p>
+          <div class="chip-dialog-row">
+            <input class="chip-dialog-input" id="chipDialogInput" placeholder="" />
+            <button class="chip-dialog-go" id="chipDialogGo">Go →</button>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div class="suggestion-chips">
+        <button class="chip" onclick="openChipDialog('Verify Margins','Company + figure to check — e.g. Tata Consumer 11% EBITDA FY25','Is {input} a reasonable assumption? Give the actual historical margin range with specific figures, the key drivers, and the main risks to this assumption.')">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Verify Margins
+        </button>
+        <button class="chip" onclick="openChipDialog('Analyse Report','Which company? e.g. Infosys FY24','Give a substantive financial analysis of {input} — cover actual revenue figures, margin performance, key drivers, and what a junior analyst should flag in the model.')">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Analyse Report
+        </button>
+        <button class="chip" onclick="openChipDialog('Compare Peers','Which companies? e.g. HDFC Bank vs ICICI Bank','Compare {input} using actual financial metrics — include real figures for NIM, margins, growth rates. Explain which is structurally stronger and why.')">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Compare Peers
+        </button>
+        <button class="chip" onclick="openChipDialog('Explain Terms','Which term? e.g. EBITDA, NIM, Free Cash Flow','What is {input}? Explain it clearly in 2–3 sentences with a practical example relevant to Indian equity research.')">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          Explain Terms
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ── CHAT VIEW ── -->
+    <div class="chat-view hidden" id="chatView">
+
+      <div class="chat-scroll" id="chatScroll">
+        <div class="chat-column" id="chatColumn"></div>
+      </div>
+
+      <div class="bottom-input-area">
+        <div class="bottom-input-inner">
+          <div class="bottom-input-box">
+            <textarea
+              id="chatInput"
+              class="bottom-input"
+              placeholder="Ask a follow-up…"
+              rows="1"
+              aria-label="Chat input"
+            ></textarea>
+            <div id="imagePreviewChat" class="image-preview-wrap" style="display:none"></div>
+            <div class="input-toolbar">
+              <div class="toolbar-left">
+                <button class="attach-btn" aria-label="Attach" onclick="document.getElementById('fileInput').click()">+</button>
+              </div>
+              <div class="toolbar-right">
+                <div class="model-selector" id="modelSelectorChat">
+                  <button class="model-btn" type="button" aria-label="Select model">
+                    Groq&nbsp;·&nbsp;<span class="model-display">High</span>
+                    <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <div class="model-dropdown">
+                    <button class="model-option active" data-model="llama-3.3-70b-versatile" data-label="High">
+                      <span class="model-opt-name">High</span>
+                      <span class="model-opt-desc">Most capable · llama-3.3-70b</span>
+                    </button>
+                    <button class="model-option" data-model="llama3-70b-8192" data-label="Medium">
+                      <span class="model-opt-name">Medium</span>
+                      <span class="model-opt-desc">Balanced · llama3-70b</span>
+                    </button>
+                    <button class="model-option" data-model="llama3-8b-8192" data-label="Low">
+                      <span class="model-opt-name">Low</span>
+                      <span class="model-opt-desc">Fastest · llama3-8b</span>
+                    </button>
+                  </div>
+                </div>
+                <button class="toolbar-icon-btn" aria-label="Voice">
+                  <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </button>
+                <button class="send-btn-round" id="chatSendBtn" aria-label="Send" disabled>
+                  <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <p class="bottom-input-footer">Prism flags claims for verification — not a replacement for your judgment.</p>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ── SIDEBAR BACKDROP (mobile) ── -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <!-- ── ONBOARDING MODAL ── -->
+  <div class="onboard-overlay hidden" id="onboardOverlay">
+    <div class="onboard-card">
+
+      <div class="onboard-step active" id="step0">
+        <div class="onboard-icon">🔍</div>
+        <div class="onboard-title">Welcome to Prism</div>
+        <div class="onboard-body">
+          Prism sits on top of every AI response and automatically flags claims that need verification before you submit your research.
+          <div class="onboard-example">
+            Ask anything → get a real answer → Prism marks what to double-check.
+          </div>
+        </div>
+      </div>
+
+      <div class="onboard-step" id="step1">
+        <div class="onboard-icon">🔴</div>
+        <div class="onboard-title">Red flags — Quantitative claims</div>
+        <div class="onboard-body">
+          A <strong>🔴 red marker</strong> appears next to any sentence containing a specific financial figure — a percentage, a revenue number, a margin ratio, or a period reference like FY24.
+          <div class="onboard-example">
+            "EBITDA margins averaged <strong>9–11%</strong> over the past three fiscal years." 🔴
+          </div>
+          Click the marker → see exactly what to verify and where (BSE filing, RBI report, etc.).
+        </div>
+      </div>
+
+      <div class="onboard-step" id="step2">
+        <div class="onboard-icon">🟡</div>
+        <div class="onboard-title">Yellow flags — Time-sensitive claims</div>
+        <div class="onboard-body">
+          A <strong>🟡 yellow marker</strong> flags statements about current conditions, recent trends, or evolving situations — things that may have changed since the model's training data.
+          <div class="onboard-example">
+            "The company <strong>has been expanding</strong> its rural distribution network in <strong>recent quarters</strong>." 🟡
+          </div>
+          These need a quick news check or latest quarterly filing.
+        </div>
+      </div>
+
+      <div class="onboard-step" id="step3">
+        <div class="onboard-icon">✅</div>
+        <div class="onboard-title">Verify and track progress</div>
+        <div class="onboard-body">
+          Click any flag → read the verification action → click <strong>"Mark as Verified ✓"</strong> once you've checked it.<br><br>
+          Prism tracks your progress. When all claims are checked, you'll see:<br>
+          <div class="onboard-example">✅ All claims checked — ready to submit</div>
+          Find all your flagged claims any time under <strong>Verified Claims</strong> in the sidebar.
+        </div>
+      </div>
+
+      <div class="onboard-dots">
+        <div class="onboard-dot active" id="dot0"></div>
+        <div class="onboard-dot" id="dot1"></div>
+        <div class="onboard-dot" id="dot2"></div>
+        <div class="onboard-dot" id="dot3"></div>
+      </div>
+
+      <div class="onboard-actions">
+        <button class="onboard-skip" id="onboardSkip">Skip</button>
+        <button class="onboard-next" id="onboardNext">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TOOLTIP ── -->
+  <div id="tooltip" role="dialog" aria-modal="true" aria-label="Claim verification detail">
+    <div class="tooltip-chip" id="tooltipChip">🔴 Quantitative</div>
+    <p class="tooltip-action" id="tooltipAction">Verify this figure against the latest filing.</p>
+    <p class="tooltip-source" id="tooltipSource">BSE / SEBI quarterly disclosures</p>
+    <button class="mark-verified-btn" id="markVerifiedBtn">Mark as Verified ✓</button>
+  </div>
+
+  <script>
+    // ════════════════════════════════════════════════════════
+    // PHASE 2 — DYNAMIC CLAIM DETECTION ENGINE
+    // ════════════════════════════════════════════════════════
+
+    // ── App state ──
+    const STATE = { messages: {} };
+    let msgCounter = 0;
+
+    // ── Detection patterns ──
+    const QUANTITATIVE_PATTERNS = [
+      /\d+(\.\d+)?\s*%/,
+      /₹[\d,]+|\$[\d,.]+/,
+      /\b(FY|Q)[0-9]{2,4}\b/i,
+      /\b\d[\d,.]*\s*(crore|billion|million|lakh|trillion)\b/i,
+      /\b(margin|EBITDA|revenue|PAT|NIM|ROE|ROA|EPS|growth|yield|return|ratio|ARPU|CASA)\b[^.]*\d/i,
+      /\b\d{1,3}[\s-]*(to|–|-)\s*\d{1,3}\s*%/i,
+      /\b(basis points?|bps)\b/i,
+    ];
+
+    const RECENT_PATTERNS = [
+      /\b(currently|recently|as of|latest|now|this year|ongoing|today)\b/i,
+      /\b(in 20[12][0-9]|last (quarter|year|month|fiscal))\b/i,
+      /\b(growing|expanding|rising|declining|increasing|improving|deteriorating|strengthening|softening|recovering|lagging)\b/i,
+      /\b(has been|have been|is expected|are projected|has seen|have seen|has guided|has reported)\b/i,
+      /\b(recent quarters?|recent months?|recent years?|past (few|three|two) (years?|quarters?))\b/i,
+    ];
+
+    // ── Utilities ──
+    function escapeHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function scrollToBottom() {
+      const col  = document.getElementById('chatColumn');
+      const last = col?.lastElementChild;
+      if (last) setTimeout(() => last.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 60);
+    }
+
+    // ── Full response tokenizer ──
+    // Returns token[] where each token has { type, text, raw }
+    // Types: 'short-answer' | 'header' | 'table' | 'bullet' | 'sources' | 'sentence'
+    function tokenizeResponse(text) {
+      const lines = text.split('\n');
+      const tokens = [];
+      let tableRows = [];
+
+      function flushTable() {
+        if (tableRows.length > 1) {
+          tokens.push({ type: 'table', raw: tableRows.join('\n'), text: '' });
+        }
+        tableRows = [];
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) { flushTable(); continue; }
+
+        if (line.startsWith('|')) {
+          tableRows.push(line); continue;
+        } else {
+          flushTable();
+        }
+
+        if (/^\*\*Short answer:\*\*/i.test(line) || /^\*\*TL;DR/i.test(line)) {
+          tokens.push({ type: 'short-answer', text: line, raw: line }); continue;
+        }
+        if (/^#{1,3}\s/.test(line)) {
+          tokens.push({ type: 'header', text: line.replace(/^#+\s*/, ''), raw: line }); continue;
+        }
+        if (/^\*\*(Positive drivers?|Headwinds?|Negative|Risks?|Upside|Downside):\*\*/i.test(line) ||
+            /^\*\*(Sources? to verify|Sources?):\*\*/i.test(line)) {
+          const isSource = /source/i.test(line);
+          tokens.push({ type: isSource ? 'sources' : 'subheader', text: line, raw: line }); continue;
+        }
+        if (/^[•\-\*]\s/.test(line) || /^⚠️/.test(line)) {
+          tokens.push({ type: 'bullet', text: line, raw: line }); continue;
+        }
+        // Split plain text into sentences
+        line.replace(/([.!?])\s+(?=[A-Z"'])/g, '$1|||')
+            .split('|||')
+            .map(s => s.trim())
+            .filter(s => s.length > 3)
+            .forEach(s => tokens.push({ type: 'sentence', text: s, raw: s }));
+      }
+      flushTable();
+      return tokens;
+    }
+
+    // Keep old name as alias for backward compat (used nowhere else now)
+    function splitSentences(text) {
+      return tokenizeResponse(text).map(t => t.text).filter(Boolean);
+    }
+
+    // ── Classify one sentence ──
+    function classifySentence(sentence) {
+      for (const p of QUANTITATIVE_PATTERNS) {
+        if (p.test(sentence)) return 'quantitative';
+      }
+      for (const p of RECENT_PATTERNS) {
+        if (p.test(sentence)) return 'recent';
+      }
+      return null;
+    }
+
+    // ── Extract a figure from sentence text ──
+    function extractFigure(text) {
+      const m = text.match(/[\d,.]+\s*%|₹[\d,.]+(?:\s*(?:crore|lakh|billion|million))?|\d[\d,.]*\s*(?:crore|lakh|billion|million)/i);
+      return m ? m[0].trim() : 'this figure';
+    }
+
+    // ── Infer verification source from sentence ──
+    function inferSource(text) {
+      if (/EBITDA|margin|PAT|revenue|operating profit|net profit|gross margin/i.test(text))
+        return 'BSE quarterly filing / Company Annual Report';
+      if (/NIM|CASA|credit|loan|deposit|banking|ARPU/i.test(text))
+        return 'RBI reports / Bank investor presentation';
+      if (/RBI|repo rate|inflation|CPI|WPI|monetary policy/i.test(text))
+        return 'RBI Monetary Policy Report';
+      if (/GDP|sector growth|industry/i.test(text))
+        return 'MOSPI / World Bank / CMIE data';
+      if (/commodity|crude|palm oil|tea|coffee|salt|wheat/i.test(text))
+        return 'MCX / Bloomberg commodity data';
+      if (/subscriber|user|DAU|MAU/i.test(text))
+        return 'Company investor presentation / TRAI data';
+      return 'Relevant exchange filing / regulatory disclosure';
+    }
+
+    // ── Build tooltip data for a segment ──
+    function buildTooltip(segment) {
+      if (segment.flagType === 'quantitative') {
+        const fig = extractFigure(segment.text);
+        return {
+          chipClass: 'quantitative',
+          chipLabel: '🔴 Quantitative',
+          action: `Verify "${fig}" against primary source data. This figure may reflect historical averages or training data, not the latest actuals.`,
+          source: inferSource(segment.text),
+        };
+      }
+      if (segment.flagType === 'recent') {
+        return {
+          chipClass: 'recent',
+          chipLabel: '🟡 Recent / Time-sensitive',
+          action: "This statement describes a current or evolving trend. Confirm it still holds — conditions may have changed since Claude's training cutoff.",
+          source: inferSource(segment.text) + ', Bloomberg, Reuters',
+        };
+      }
+      return null;
+    }
+
+    // ── Build Prism Assumes list ──
+    function buildAssumptions(segments) {
+      const hasQ = segments.some(s => s.flagType === 'quantitative');
+      const hasR = segments.some(s => s.flagType === 'recent');
+      const list = ["Analysis is based on Claude's training data and may not reflect real-time disclosures."];
+      if (hasQ) list.push('Figures cited reflect historical averages or reported data — not current market prices or latest filings.');
+      if (hasR) list.push('Recent trends described may have shifted due to earnings surprises, regulatory changes, or macro events.');
+      return list;
+    }
+
+    function buildMissingInfo(segments, prompt) {
+      const missing = [];
+      if (/tata|fmcg|consumer/i.test(prompt)) missing.push('Latest BSE quarterly results or management commentary');
+      if (/bank|hdfc|icici|nim/i.test(prompt)) missing.push('Most recent RBI monetary policy and credit growth data');
+      if (/infosys|it sector|wipro|tcs/i.test(prompt)) missing.push('Most recent deal wins, client commentary, and currency movement impact');
+      if (missing.length === 0) missing.push('Any post-training-cutoff disclosures or material corporate events');
+      missing.push('Real-time commodity prices or currency movements that may affect margins');
+      return missing.slice(0, 2);
+    }
+
+    // ── Core: analyseResponse → Segment[] ──
+    // Preserves verified state from STATE.messages if the message was replayed from storage
+    function analyseResponse(text, msgId) {
+      const savedMsg = STATE.messages[msgId];
+      const tokens = tokenizeResponse(text);
+      let flagCount = 0;
+      return tokens.map((token, i) => {
+        const segId = `${msgId}-${i}`;
+        const canFlag = token.type === 'sentence' || token.type === 'bullet';
+        const rawType = canFlag ? classifySentence(token.text) : null;
+        const flagType = (rawType && flagCount < 5) ? rawType : null;
+        if (flagType) flagCount++;
+        // Restore verified state if this segment was previously saved
+        const wasVerified = savedMsg?.segments?.find(s => s.id === segId)?.verified || false;
+        const segment = {
+          id: segId, msgId,
+          tokenType: token.type,
+          text: token.text,
+          raw: token.raw || token.text,
+          flagType, verified: wasVerified, tooltip: null
+        };
+        if (flagType) segment.tooltip = buildTooltip(segment);
+        return segment;
+      });
+    }
+
+    // ════════════════════════════════════════════════════════
+    // GROQ API INTEGRATION
+    // ════════════════════════════════════════════════════════
+
+    // For local development: paste your Groq API key here.
+    // On Vercel this value is unused — the Edge Function (api/chat.js)
+    // reads process.env.GROQ_API_KEY instead.
+    const GROQ_API_KEY  = 'YOUR_GROQ_API_KEY_HERE';
+    let   CURRENT_MODEL = 'llama-3.3-70b-versatile';
+
+    const PRISM_SYSTEM_PROMPT = `You are a senior equity research analyst at a top Indian brokerage. Junior analysts ask you questions and you give them DETAILED, SUBSTANTIVE answers — the kind a CFA charterholder would write in a research note.
+
+ANSWER FORMAT (always use this structure for analytical questions):
+
+**Short answer:** [1–2 sentences giving the direct verdict with the actual figure]
+
+## [Section heading — e.g. "Historical EBITDA Margin Range" or "Key Financial Metrics"]
+[If you have multi-year data, present it as a markdown table:]
+| Year | Metric |
+|------|--------|
+| FY22 | X% |
+| FY23 | Y% |
+
+## Key Drivers
+**Positive drivers:**
+• [Specific driver with actual figure or trend — e.g. "Tea prices stabilising: management guided 200–300 bps margin improvement"]
+• [Another specific driver]
+
+**Headwinds:**
+• [Specific headwind with figure — e.g. "Tea cost inflation surged ~25% in FY25, only 30% passed through"]
+• [Another headwind]
+
+## Key Risks
+• [Risk 1 with specific context]
+• [Risk 2]
+
+## Bottom Line
+[2–3 sentences with your final analytical verdict including specific figures]
+
+**Sources to verify:** [List 2–3 specific sources — e.g. "Tata Consumer Q4 FY25 BSE filing", "MCX tea price data", "Company investor day presentation"]
+
+CRITICAL RULES:
+- Give REAL figures from your training knowledge. State specific percentages, years, rupee amounts. Prism flags them — that is by design.
+- Never say "you should check" without first giving the actual figure yourself.
+- Be specific to Indian markets: BSE filings, NSE data, RBI reports, SEBI disclosures, management commentary.
+- Total response: 350–550 words for analytical questions.
+
+For PURELY DEFINITIONAL questions ("What is EBITDA?", "Define NIM", "Explain DCF"):
+Write 2–3 clear sentences with a practical Indian market example. No table, no sections needed.`;
+
+    async function callGroq(prompt) {
+      const isLocal = location.protocol === 'file:' ||
+                      location.hostname === 'localhost' ||
+                      location.hostname === '127.0.0.1';
+
+      if (isLocal) {
+        // ── Local development: call Groq directly using hardcoded key ──
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GROQ_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: CURRENT_MODEL,
+            max_tokens: 900,
+            temperature: 0.65,
+            messages: [
+              { role: 'system', content: PRISM_SYSTEM_PROMPT },
+              { role: 'user',   content: prompt }
+            ]
+          })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          if (res.status === 401) throw new Error('INVALID_KEY');
+          throw new Error(err?.error?.message || `HTTP ${res.status}`);
+        }
+        return (await res.json()).choices[0].message.content.trim();
+
+      } else {
+        // ── Production (Vercel): call Edge Function proxy — key never leaves server ──
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, model: CURRENT_MODEL })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error || `HTTP ${res.status}`);
+        }
+        return (await res.json()).text;
+      }
+    }
+
+    // ── Render error bubble ──
+    function renderErrorMessage(msgId, errText) {
+      const col = document.getElementById('chatColumn');
+      const row = document.createElement('div');
+      row.className = 'message-row';
+      const isKeyErr = errText === 'INVALID_KEY';
+      const message = isKeyErr
+        ? 'Invalid API key — DeepSeek rejected the request.'
+        : `Could not reach DeepSeek: ${errText}`;
+      row.innerHTML = `
+        <div class="avatar assistant">P</div>
+        <div class="bubble-wrap">
+          <div class="bubble error">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>${escapeHtml(message)}
+              ${isKeyErr ? `<button class="key-chip" onclick="showApiKeyModal()">Update key</button>` : ''}
+            </span>
+          </div>
+        </div>`;
+      col.appendChild(row);
+      scrollToBottom();
+    }
+
+    // ── Render a full assistant message ──
+    function renderAssistantMessage(responseText, msgId, prompt) {
+      const segments = analyseResponse(responseText, msgId);
+      const flaggedSegs = segments.filter(s => s.flagType);
+      const mode = flaggedSegs.length === 0 ? 'quiet' : 'flagged';
+
+      STATE.messages[msgId] = { segments, mode, prompt };
+
+      const col = document.getElementById('chatColumn');
+      const row = document.createElement('div');
+      row.className = 'message-row';
+      row.dataset.msgId = msgId;
+
+      // ── Prose renderer — handles all token types ──
+      let proseHtml = '';
+      let inList = false;
+
+      function md(t) {
+        return t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      }
+
+      function flagBtn(seg) {
+        if (!seg.flagType) return '';
+        const cls  = seg.flagType === 'quantitative' ? 'quantitative' : 'recent';
+        const icon = seg.flagType === 'quantitative' ? '🔴' : '🟡';
+        return `<button class="flag-btn ${cls}" data-seg-id="${seg.id}" data-msg-id="${msgId}" aria-label="Verify this claim">${icon}</button>`;
+      }
+
+      function closeList() {
+        if (inList) { proseHtml += '</ul>'; inList = false; }
+      }
+
+      function parseMarkdownTable(raw) {
+        const rows = raw.split('\n').map(r => r.trim()).filter(r => r.startsWith('|'));
+        if (rows.length < 2) return null;
+        const header = rows[0].split('|').map(c => c.trim()).filter(Boolean);
+        const body   = rows.slice(2); // skip separator row
+        let html = '<div class="resp-table-wrap"><table class="resp-table"><thead><tr>';
+        header.forEach(h => { html += `<th>${escapeHtml(h)}</th>`; });
+        html += '</tr></thead><tbody>';
+        body.forEach(row => {
+          const cells = row.split('|').map(c => c.trim()).filter(Boolean);
+          if (!cells.length) return;
+          html += '<tr>';
+          cells.forEach(c => { html += `<td>${md(escapeHtml(c))}</td>`; });
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        return html;
+      }
+
+      segments.forEach(seg => {
+        const t = seg.tokenType;
+        const raw = seg.raw || seg.text;
+
+        if (t === 'short-answer') {
+          closeList();
+          const inner = md(escapeHtml(raw.replace(/^\*\*Short answer:\*\*:?\s*/i, '').replace(/^\*\*TL;DR:?\*\*:?\s*/i, '')));
+          proseHtml += `<div class="tldr">💡 ${inner}${flagBtn(seg)}</div>`;
+          return;
+        }
+
+        if (t === 'header') {
+          closeList();
+          proseHtml += `<div class="resp-header">${md(escapeHtml(raw))}</div>`;
+          return;
+        }
+
+        if (t === 'subheader') {
+          closeList();
+          proseHtml += `<div class="resp-subheader">${md(escapeHtml(raw))}</div>`;
+          return;
+        }
+
+        if (t === 'table') {
+          closeList();
+          const tableHtml = parseMarkdownTable(raw);
+          if (tableHtml) proseHtml += tableHtml;
+          return;
+        }
+
+        if (t === 'sources') {
+          closeList();
+          const inner = md(escapeHtml(raw.replace(/^\*\*Sources? to verify:\*\*:?\s*/i, '').replace(/^\*\*Sources?:\*\*:?\s*/i, '')));
+          proseHtml += `<div class="resp-sources"><strong>📎 Sources to verify</strong><br>${inner}</div>`;
+          return;
+        }
+
+        if (t === 'bullet') {
+          if (!inList) { proseHtml += '<ul>'; inList = true; }
+          const inner = md(escapeHtml(raw.replace(/^[•\-\*⚠️]\s*/, '')));
+          proseHtml += `<li><span data-seg-id="${seg.id}">${inner}</span>${flagBtn(seg)}</li>`;
+          return;
+        }
+
+        // Plain sentence / paragraph
+        closeList();
+        const inner = md(escapeHtml(raw));
+        proseHtml += `<p><span data-seg-id="${seg.id}">${inner}</span>${flagBtn(seg)}</p>`;
+      });
+      closeList();
+
+      // Progress bar
+      const progressHtml = mode === 'flagged' ? `
+        <div class="verify-progress" id="progress-${msgId}">
+          <div class="progress-label">
+            <span id="progress-text-${msgId}">0 of ${flaggedSegs.length} claim${flaggedSegs.length > 1 ? 's' : ''} verified</span>
+            <span id="progress-frac-${msgId}">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-fill-${msgId}" style="width:0%"></div>
+          </div>
+        </div>` : '';
+
+      // Quiet label
+      const quietHtml = mode === 'quiet'
+        ? `<p class="quiet-label">ℹ️ General guidance — no specific figures to verify in this response.</p>`
+        : '';
+
+      // Prism Assumes panel
+      let assumesHtml = '';
+      if (mode === 'flagged') {
+        const assumptions = buildAssumptions(segments);
+        const missing     = buildMissingInfo(segments, prompt);
+        assumesHtml = `
+          <details class="prism-assumes" open>
+            <summary>⚡ What Prism Assumes</summary>
+            <div class="assumes-body">
+              <ul class="assumes-list">${assumptions.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul>
+              <p class="missing-label">May be missing:</p>
+              <ul class="assumes-list">${missing.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>
+            </div>
+          </details>`;
+      }
+
+      row.innerHTML = `
+        <div class="avatar assistant">P</div>
+        <div class="bubble-wrap">
+          <div class="bubble assistant" id="bubble-${msgId}">
+            <div class="prose">${proseHtml}</div>
+            ${progressHtml}
+            ${quietHtml}
+            ${assumesHtml}
+          </div>
+        </div>`;
+
+      col.appendChild(row);
+      scrollToBottom();
+    }
+
+    // ════════════════════════════════════════════════════════
+    // TOOLTIP SYSTEM
+    // ════════════════════════════════════════════════════════
+    let activeSegId = null;
+    let activeMsgId = null;
+    const tooltipEl  = document.getElementById('tooltip');
+
+    function showTooltip(flagBtn, segId, msgId) {
+      const msg = STATE.messages[msgId];
+      if (!msg) return;
+      const seg = msg.segments.find(s => s.id === segId);
+      if (!seg || !seg.tooltip) return;
+
+      activeSegId = segId;
+      activeMsgId = msgId;
+
+      const chipEl   = document.getElementById('tooltipChip');
+      chipEl.className = `tooltip-chip ${seg.tooltip.chipClass}`;
+      chipEl.textContent = seg.tooltip.chipLabel;
+      document.getElementById('tooltipAction').textContent = seg.tooltip.action;
+      document.getElementById('tooltipSource').textContent = seg.tooltip.source;
+
+      // Position relative to flag button
+      const rect = flagBtn.getBoundingClientRect();
+      const ttW = 288, ttH = 220;
+      const vw = window.innerWidth, vh = window.innerHeight;
+
+      let top  = rect.bottom + 10;
+      let left = rect.left - ttW / 2 + rect.width / 2;
+      if (left + ttW > vw - 12) left = vw - ttW - 12;
+      if (left < 12)             left = 12;
+      if (top + ttH > vh - 12)   top  = rect.top - ttH - 10;
+
+      tooltipEl.style.top  = top + 'px';
+      tooltipEl.style.left = left + 'px';
+      tooltipEl.classList.add('visible');
+    }
+
+    function hideTooltip() {
+      tooltipEl.classList.remove('visible');
+      activeSegId = null;
+      activeMsgId = null;
+    }
+
+    document.getElementById('markVerifiedBtn').addEventListener('click', () => {
+      if (!activeSegId || !activeMsgId) return;
+      verifySegment(activeMsgId, activeSegId);
+      hideTooltip();
+    });
+
+    // ════════════════════════════════════════════════════════
+    // VERIFICATION STATE
+    // ════════════════════════════════════════════════════════
+    function verifySegment(msgId, segId) {
+      const msg = STATE.messages[msgId];
+      if (!msg) return;
+      const seg = msg.segments.find(s => s.id === segId);
+      if (!seg || seg.verified) return;
+      seg.verified = true;
+
+      // Swap flag → green check with animation
+      const btn = document.querySelector(`.flag-btn[data-seg-id="${segId}"]`);
+      if (btn) {
+        btn.className = 'flag-btn verified';
+        btn.textContent = '✓';
+        btn.disabled = true;
+      }
+
+      updateProgress(msgId);
+    }
+
+    function updateProgress(msgId) {
+      const msg = STATE.messages[msgId];
+      if (!msg) return;
+      const flagged  = msg.segments.filter(s => s.flagType);
+      const verified = flagged.filter(s => s.verified);
+      const total    = flagged.length;
+      const done     = verified.length;
+      const pct      = total > 0 ? Math.round((done / total) * 100) : 0;
+
+      if (done === total) {
+        const progEl = document.getElementById(`progress-${msgId}`);
+        if (progEl) {
+          progEl.outerHTML = `
+            <div class="all-verified-banner" id="progress-${msgId}">
+              ✅ All claims checked — ready to submit
+            </div>`;
+        }
+      } else {
+        const textEl = document.getElementById(`progress-text-${msgId}`);
+        const fracEl = document.getElementById(`progress-frac-${msgId}`);
+        const fillEl = document.getElementById(`progress-fill-${msgId}`);
+        if (textEl) textEl.textContent = `${done} of ${total} claim${total > 1 ? 's' : ''} verified`;
+        if (fracEl) fracEl.textContent = `${pct}%`;
+        if (fillEl) fillEl.style.width = pct + '%';
+      }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // EVENT DELEGATION — flag clicks & tooltip dismiss
+    // ════════════════════════════════════════════════════════
+    document.getElementById('chatColumn').addEventListener('click', (e) => {
+      const btn = e.target.closest('.flag-btn:not([disabled])');
+      if (btn) {
+        const segId = btn.dataset.segId;
+        const msgId = btn.dataset.msgId;
+        if (activeSegId === segId) { hideTooltip(); return; }
+        showTooltip(btn, segId, msgId);
+        e.stopPropagation();
+        return;
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!tooltipEl.contains(e.target) && !e.target.closest('.flag-btn')) hideTooltip();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') hideTooltip();
+    });
+
+    // ════════════════════════════════════════════════════════
+    // SESSION MANAGEMENT
+    // ════════════════════════════════════════════════════════
+    const SESSIONS = {};
+    let currentSessionId = null;
+    let sessionCounter   = 0;
+
+    function createSession(firstMsg) {
+      const id    = `s${++sessionCounter}`;
+      const title = firstMsg.slice(0, 45) + (firstMsg.length > 45 ? '…' : '');
+      SESSIONS[id] = { id, title, starred: false, createdAt: Date.now(), claimMsgIds: [] };
+      currentSessionId = id;
+      renderSidebarSections();
+      setNavActive('navChats');
+      return id;
+    }
+
+    function renderSidebarSections() {
+      const all = Object.values(SESSIONS).sort((a, b) => b.createdAt - a.createdAt);
+      renderSessionList('starredList', all.filter(s => s.starred));
+      renderSessionList('recentsList', all);
+    }
+
+    function renderSessionList(containerId, sessions) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      if (!sessions.length) { el.innerHTML = ''; return; }
+      el.innerHTML = sessions.map(s => `
+        <div class="session-item${s.id === currentSessionId ? ' active' : ''}" data-sid="${s.id}">
+          <span class="session-title">${escapeHtml(s.title)}</span>
+          <button class="star-btn${s.starred ? ' starred' : ''}" data-sid="${s.id}" title="Star">${s.starred ? '★' : '☆'}</button>
+        </div>`).join('');
+
+      el.querySelectorAll('.session-item').forEach(item => {
+        item.addEventListener('click', e => {
+          if (e.target.closest('.star-btn')) return;
+          switchSessionUI(item.dataset.sid);
+        });
+      });
+      el.querySelectorAll('.star-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const s = SESSIONS[btn.dataset.sid];
+          if (s) { s.starred = !s.starred; renderSidebarSections(); }
+        });
+      });
+    }
+
+    function switchSessionUI(sid) {
+      currentSessionId = sid;
+      renderSidebarSections();
+      // Just show the chat view; full replay not implemented — show welcome for other sessions
+      showView('chat');
+    }
+
+    function setNavActive(id) {
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById(id)?.classList.add('active');
+    }
+
+    // ════════════════════════════════════════════════════════
+    // VERIFIED CLAIMS VIEW
+    // ════════════════════════════════════════════════════════
+    function showClaimsView() {
+      showView('claims');
+      setNavActive('navVerifiedClaims');
+      const list = document.getElementById('claimsList');
+      const allSegs = Object.values(STATE.messages).flatMap(m => m.segments || []).filter(s => s.flagType);
+
+      if (!allSegs.length) {
+        list.innerHTML = '<p class="claims-empty">No flagged claims yet. Start a chat to see claims here.</p>';
+        return;
+      }
+
+      list.innerHTML = allSegs.map(seg => {
+        const icon = seg.verified ? '✅' : (seg.flagType === 'quantitative' ? '🔴' : '🟡');
+        const typeLabel = seg.flagType === 'quantitative' ? 'Quantitative' : 'Recent';
+        return `
+          <div class="claim-card">
+            <div class="claim-status-icon">${icon}</div>
+            <div class="claim-card-body">
+              <div class="claim-text">${escapeHtml(seg.text)}</div>
+              <div class="claim-meta">
+                <span class="claim-type-tag ${seg.flagType}">${typeLabel}</span>
+                <span>${seg.verified ? 'Verified ✓' : 'Pending verification'}</span>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    document.getElementById('navVerifiedClaims')?.addEventListener('click', showClaimsView);
+
+    // ════════════════════════════════════════════════════════
+    // CHIP DIALOG
+    // ════════════════════════════════════════════════════════
+    let chipPromptTemplate = '';
+
+    function openChipDialog(label, hint, template) {
+      chipPromptTemplate = template;
+      document.getElementById('chipDialogLabel').textContent = label;
+      document.getElementById('chipDialogHint').textContent  = hint;
+      document.getElementById('chipDialogInput').value       = '';
+      document.getElementById('chipDialogInput').placeholder = hint;
+      document.getElementById('chipDialog').classList.remove('hidden');
+      setTimeout(() => document.getElementById('chipDialogInput').focus(), 50);
+    }
+
+    function closeChipDialog() {
+      document.getElementById('chipDialog').classList.add('hidden');
+    }
+
+    document.getElementById('chipDialogGo').addEventListener('click', () => {
+      const userInput = document.getElementById('chipDialogInput').value.trim();
+      if (!userInput) return;
+      const prompt = chipPromptTemplate.replace('{input}', userInput);
+      closeChipDialog();
+      welcomeInput.value = prompt;
+      welcomeInput.dispatchEvent(new Event('input'));
+      switchToChat(prompt);
+    });
+
+    document.getElementById('chipDialogInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('chipDialogGo').click();
+      if (e.key === 'Escape') closeChipDialog();
+    });
+
+    // ════════════════════════════════════════════════════════
+    // IMAGE UPLOAD / PASTE
+    // ════════════════════════════════════════════════════════
+    const pendingImages = [];
+
+    function handleImageFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const src = e.target.result;
+        pendingImages.push({ file, src });
+        renderImagePreviews();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderImagePreviews() {
+      ['imagePreviewWelcome', 'imagePreviewChat'].forEach(id => {
+        const wrap = document.getElementById(id);
+        if (!wrap) return;
+        if (!pendingImages.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+        wrap.style.display = 'flex';
+        wrap.innerHTML = pendingImages.map((img, i) => `
+          <div class="image-thumb">
+            <img src="${img.src}" alt="attachment" />
+            <button class="image-thumb-remove" onclick="removeImage(${i})">×</button>
+          </div>`).join('');
+      });
+    }
+
+    function removeImage(index) {
+      pendingImages.splice(index, 1);
+      renderImagePreviews();
+    }
+
+    document.getElementById('fileInput').addEventListener('change', e => {
+      [...e.target.files].forEach(handleImageFile);
+      e.target.value = '';
+    });
+
+    document.addEventListener('paste', e => {
+      const items = e.clipboardData?.items || [];
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          handleImageFile(item.getAsFile());
+        }
+      }
+    });
+
+    // ════════════════════════════════════════════════════════
+    // VIEW SWITCHER
+    // ════════════════════════════════════════════════════════
+    function showView(name) {
+      document.getElementById('welcomeView').classList.toggle('hidden', name !== 'welcome');
+      document.getElementById('chatView').classList.toggle('hidden', name !== 'chat');
+      document.getElementById('claimsView').classList.toggle('hidden', name !== 'claims');
+    }
+
+    // ════════════════════════════════════════════════════════
+    // INPUT & VIEW WIRING
+    // ════════════════════════════════════════════════════════
+
+    // Greeting — reads name from sidebar profile
+    (function () {
+      const h    = new Date().getHours();
+      const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+      const name = document.querySelector('.user-name')?.textContent?.trim() || '';
+      document.getElementById('greetingText').textContent =
+        name ? `Good ${part}, ${name}` : `Good ${part},`;
+    })();
+
+    // Model selector wiring (shared across both toolbar instances)
+    document.querySelectorAll('.model-selector').forEach(selector => {
+      const btn = selector.querySelector('.model-btn');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = selector.classList.contains('open');
+        document.querySelectorAll('.model-selector').forEach(s => s.classList.remove('open'));
+        if (!isOpen) selector.classList.add('open');
+      });
+      selector.querySelectorAll('.model-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+          CURRENT_MODEL = opt.dataset.model;
+          const label   = opt.dataset.label;
+          document.querySelectorAll('.model-display').forEach(el => el.textContent = label);
+          document.querySelectorAll('.model-option').forEach(o =>
+            o.classList.toggle('active', o.dataset.model === CURRENT_MODEL)
+          );
+          document.querySelectorAll('.model-selector').forEach(s => s.classList.remove('open'));
+        });
+      });
+    });
+
+    // Close model dropdown on outside click
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.model-selector').forEach(s => s.classList.remove('open'));
+    });
+
+    const welcomeInput   = document.getElementById('welcomeInput');
+    const welcomeSendBtn = document.getElementById('welcomeSendBtn');
+    const chatInput      = document.getElementById('chatInput');
+    const chatSendBtn    = document.getElementById('chatSendBtn');
+
+    function wireInput(textarea, sendBtn, onSend) {
+      textarea.addEventListener('input', () => {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 180) + 'px';
+        const has = textarea.value.trim().length > 0;
+        sendBtn.disabled = !has;
+        sendBtn.classList.toggle('active', has);
+      });
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (!sendBtn.disabled) sendBtn.click();
+        }
+      });
+      sendBtn.addEventListener('click', () => {
+        const text = textarea.value.trim();
+        if (!text) return;
+        onSend(text);
+        textarea.value = '';
+        textarea.style.height = 'auto';
+        sendBtn.disabled = true;
+        sendBtn.classList.remove('active');
+      });
+    }
+
+    wireInput(welcomeInput, welcomeSendBtn, switchToChat);
+    wireInput(chatInput, chatSendBtn, handleChatSend);
+
+    function switchToChat(prompt) {
+      if (!currentSessionId) createSession(prompt);
+      showView('chat');
+      setNavActive('navChats');
+      appendUserBubble(prompt);
+      triggerAssistantReply(prompt);
+      pendingImages.length = 0;
+      renderImagePreviews();
+      chatInput.focus();
+    }
+
+    function handleChatSend(prompt) {
+      appendUserBubble(prompt);
+      triggerAssistantReply(prompt);
+      pendingImages.length = 0;
+      renderImagePreviews();
+    }
+
+    function setLoading(isLoading) {
+      chatInput.disabled    = isLoading;
+      chatSendBtn.disabled  = isLoading;
+      chatSendBtn.classList.toggle('loading', isLoading);
+      if (!isLoading) {
+        const has = chatInput.value.trim().length > 0;
+        chatSendBtn.classList.toggle('active', has);
+      } else {
+        chatSendBtn.classList.remove('active');
+      }
+    }
+
+    async function triggerAssistantReply(prompt) {
+      setLoading(true);
+      showTypingIndicator();
+      const msgId = `msg-${++msgCounter}`;
+      try {
+        const responseText = await callGroq(prompt);
+        removeTypingIndicator();
+        renderAssistantMessage(responseText, msgId, prompt);
+        // Track in session + persist to localStorage
+        if (currentSessionId && SESSIONS[currentSessionId]) {
+          SESSIONS[currentSessionId].claimMsgIds.push(msgId);
+          saveChatMessage(currentSessionId, {
+            id: msgId, role: 'assistant', msgId, responseText, prompt
+          });
+        }
+        persistSave();
+      } catch (err) {
+        removeTypingIndicator();
+        renderErrorMessage(msgId, err.message);
+      } finally {
+        setLoading(false);
+        chatInput.focus();
+      }
+    }
+
+    // Chip helper
+    function fillAndSend(text) {
+      welcomeInput.value = text;
+      welcomeInput.dispatchEvent(new Event('input'));
+      switchToChat(text);
+    }
+
+    // New chat
+    document.getElementById('newChatBtn').addEventListener('click', () => {
+      hideTooltip();
+      currentSessionId = null;
+      document.getElementById('chatColumn').innerHTML = '';
+      // Don't wipe chat history — just start fresh session on next send
+      showView('welcome');
+      setNavActive('navChats');
+      welcomeInput.value = '';
+      welcomeInput.style.height = 'auto';
+      welcomeSendBtn.disabled = true;
+      welcomeSendBtn.classList.remove('active');
+      pendingImages.length = 0;
+      renderImagePreviews();
+      renderSidebarSections();
+      welcomeInput.focus();
+    });
+
+    // Chats nav button → go back to welcome/chat
+    document.getElementById('navChats')?.addEventListener('click', () => {
+      if (currentSessionId) {
+        showView('chat');
+      } else {
+        showView('welcome');
+      }
+      setNavActive('navChats');
+    });
+
+    // ── DOM helpers ──
+    function appendUserBubble(text, persist = true) {
+      const col = document.getElementById('chatColumn');
+      const row = document.createElement('div');
+      row.className = 'message-row user';
+      row.innerHTML = `
+        <div class="avatar user">G</div>
+        <div class="bubble-wrap">
+          <div class="bubble user">${escapeHtml(text)}</div>
+        </div>`;
+      col.appendChild(row);
+      scrollToBottom();
+      if (persist && currentSessionId) {
+        saveChatMessage(currentSessionId, { id: `u-${Date.now()}`, role: 'user', text });
+      }
+    }
+
+    let typingRow = null;
+
+    function showTypingIndicator() {
+      const col = document.getElementById('chatColumn');
+      typingRow = document.createElement('div');
+      typingRow.className = 'typing-wrap';
+      typingRow.innerHTML = `
+        <div class="avatar assistant">P</div>
+        <div class="typing-dots">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>`;
+      col.appendChild(typingRow);
+      scrollToBottom();
+    }
+
+    function removeTypingIndicator() {
+      if (typingRow) { typingRow.remove(); typingRow = null; }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // MESSAGE PERSISTENCE (Problem 1 fix)
+    // ════════════════════════════════════════════════════════
+    const LS_CHAT = 'prism_chat_v1';
+
+    function saveChatMessage(sessionId, entry) {
+      try {
+        const all = JSON.parse(localStorage.getItem(LS_CHAT) || '{}');
+        if (!all[sessionId]) all[sessionId] = [];
+        if (!all[sessionId].find(m => m.id === entry.id)) {
+          all[sessionId].push(entry);
+        }
+        localStorage.setItem(LS_CHAT, JSON.stringify(all));
+      } catch(e) {}
+    }
+
+    function loadChatMessages(sessionId) {
+      try {
+        const all = JSON.parse(localStorage.getItem(LS_CHAT) || '{}');
+        return all[sessionId] || [];
+      } catch(e) { return []; }
+    }
+
+    // Apply verified state from STATE.messages to DOM buttons + update progress
+    function applyVerifiedStatesToDOM(msgId) {
+      const msg = STATE.messages[msgId];
+      if (!msg) return;
+      msg.segments.forEach(seg => {
+        if (seg.verified) {
+          const btn = document.querySelector(`.flag-btn[data-seg-id="${seg.id}"]`);
+          if (btn) {
+            btn.className = 'flag-btn verified';
+            btn.textContent = '✓';
+            btn.disabled = true;
+          }
+        }
+      });
+      updateProgress(msgId);
+    }
+
+    // Replay the most recent session's messages on page load
+    function replayLastSession() {
+      const sessions = Object.values(SESSIONS).sort((a, b) => b.createdAt - a.createdAt);
+      if (!sessions.length) return;
+
+      const lastSession = sessions[0];
+      const messages    = loadChatMessages(lastSession.id);
+      if (!messages.length) return;
+
+      currentSessionId = lastSession.id;
+      showView('chat');
+      setNavActive('navChats');
+
+      const col = document.getElementById('chatColumn');
+      col.innerHTML = '';
+
+      messages.forEach(entry => {
+        if (entry.role === 'user') {
+          appendUserBubble(entry.text);
+        } else if (entry.role === 'assistant') {
+          // Align counter so new msgs don't collide with replayed IDs
+          const num = parseInt(entry.msgId.replace('msg-', '')) || 0;
+          if (num > msgCounter) msgCounter = num;
+          renderAssistantMessage(entry.responseText, entry.msgId, entry.prompt);
+          applyVerifiedStatesToDOM(entry.msgId);
+        }
+      });
+    }
+
+    // ════════════════════════════════════════════════════════
+    // LOCALSTORAGE PERSISTENCE
+    // ════════════════════════════════════════════════════════
+    const LS_SESSIONS = 'prism_sessions';
+    const LS_STATE    = 'prism_state';
+    const LS_COUNTERS = 'prism_counters';
+
+    function persistSave() {
+      try {
+        localStorage.setItem(LS_SESSIONS, JSON.stringify(SESSIONS));
+        localStorage.setItem(LS_STATE,    JSON.stringify(STATE.messages));
+        localStorage.setItem(LS_COUNTERS, JSON.stringify({ msgCounter, sessionCounter }));
+      } catch(e) {} // ignore quota errors silently
+    }
+
+    function persistLoad() {
+      try {
+        const savedSessions = localStorage.getItem(LS_SESSIONS);
+        if (savedSessions) Object.assign(SESSIONS, JSON.parse(savedSessions));
+
+        const savedState = localStorage.getItem(LS_STATE);
+        if (savedState) Object.assign(STATE.messages, JSON.parse(savedState));
+
+        const savedCounters = localStorage.getItem(LS_COUNTERS);
+        if (savedCounters) {
+          const c = JSON.parse(savedCounters);
+          msgCounter     = c.msgCounter     || 0;
+          sessionCounter = c.sessionCounter || 0;
+        }
+        renderSidebarSections();
+        replayLastSession();
+      } catch(e) {}
+    }
+
+    // Auto-save after every state-mutating operation
+    const _origVerify = verifySegment;
+    verifySegment = function(msgId, segId) {
+      _origVerify(msgId, segId);
+      persistSave();
+    };
+
+    // Save after session creation and star toggle (patch renderSessionList)
+    const _origCreate = createSession;
+    createSession = function(firstMsg) {
+      const id = _origCreate(firstMsg);
+      persistSave();
+      return id;
+    };
+
+    // Load on startup
+    persistLoad();
+
+    // ════════════════════════════════════════════════════════
+    // MOBILE SIDEBAR DRAWER
+    // ════════════════════════════════════════════════════════
+    const hamburgerBtn   = document.getElementById('hamburgerBtn');
+    const sidebarEl      = document.querySelector('.sidebar');
+    const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+    function openMobileSidebar() {
+      sidebarEl.classList.add('mobile-open');
+      sidebarBackdrop.classList.add('visible');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeMobileSidebar() {
+      sidebarEl.classList.remove('mobile-open');
+      sidebarBackdrop.classList.remove('visible');
+      document.body.style.overflow = '';
+    }
+
+    hamburgerBtn?.addEventListener('click', () => {
+      sidebarEl.classList.contains('mobile-open') ? closeMobileSidebar() : openMobileSidebar();
+    });
+
+    sidebarBackdrop?.addEventListener('click', closeMobileSidebar);
+
+    // Close sidebar when nav item clicked on mobile
+    document.querySelectorAll('.nav-item, .nav-new-chat').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (window.innerWidth <= 700) closeMobileSidebar();
+      });
+    });
+
+    // ════════════════════════════════════════════════════════
+    // ONBOARDING
+    // ════════════════════════════════════════════════════════
+    const LS_ONBOARDED = 'prism_onboarded';
+    let onboardStep = 0;
+    const TOTAL_STEPS = 4;
+
+    function showOnboarding() {
+      document.getElementById('onboardOverlay').classList.remove('hidden');
+      setOnboardStep(0);
+    }
+
+    function hideOnboarding() {
+      document.getElementById('onboardOverlay').classList.add('hidden');
+      localStorage.setItem(LS_ONBOARDED, '1');
+    }
+
+    function setOnboardStep(n) {
+      onboardStep = n;
+      document.querySelectorAll('.onboard-step').forEach((el, i) => {
+        el.classList.toggle('active', i === n);
+      });
+      document.querySelectorAll('.onboard-dot').forEach((el, i) => {
+        el.classList.toggle('active', i === n);
+      });
+      const nextBtn = document.getElementById('onboardNext');
+      nextBtn.textContent = n === TOTAL_STEPS - 1 ? 'Get started ✓' : 'Next →';
+    }
+
+    document.getElementById('onboardNext')?.addEventListener('click', () => {
+      if (onboardStep < TOTAL_STEPS - 1) {
+        setOnboardStep(onboardStep + 1);
+      } else {
+        hideOnboarding();
+      }
+    });
+
+    document.getElementById('onboardSkip')?.addEventListener('click', hideOnboarding);
+
+    // Help button re-opens onboarding
+    document.getElementById('helpBtn')?.addEventListener('click', showOnboarding);
+
+    // Show on first visit
+    if (!localStorage.getItem(LS_ONBOARDED)) showOnboarding();
+
+    // ════════════════════════════════════════════════════════
+    // CLAIM JUMP NAVIGATION — click claim → jump to chat
+    // ════════════════════════════════════════════════════════
+    function jumpToClaim(msgId, segId) {
+      // Switch to chat view first
+      showView('chat');
+      setNavActive('navChats');
+      closeMobileSidebar();
+
+      // Wait for view to render, then scroll and highlight
+      setTimeout(() => {
+        const bubble = document.getElementById(`bubble-${msgId}`);
+        if (!bubble) return;
+
+        bubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Highlight the specific sentence span
+        setTimeout(() => {
+          const span = bubble.querySelector(`[data-seg-id="${segId}"]`);
+          if (span) {
+            span.classList.add('claim-highlight');
+            span.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            setTimeout(() => span.classList.remove('claim-highlight'), 2500);
+          }
+        }, 400);
+      }, 100);
+    }
+
+    // Override showClaimsView to add jump buttons
+    const _origShowClaims = showClaimsView;
+    showClaimsView = function() {
+      showView('claims');
+      setNavActive('navVerifiedClaims');
+      const list = document.getElementById('claimsList');
+      const allSegs = Object.values(STATE.messages)
+        .flatMap(m => m.segments || [])
+        .filter(s => s.flagType);
+
+      if (!allSegs.length) {
+        list.innerHTML = '<p class="claims-empty">No flagged claims yet. Start a chat to see claims here.</p>';
+        return;
+      }
+
+      list.innerHTML = allSegs.map(seg => {
+        const icon      = seg.verified ? '✅' : (seg.flagType === 'quantitative' ? '🔴' : '🟡');
+        const typeLabel = seg.flagType === 'quantitative' ? 'Quantitative' : 'Recent';
+        const hasMsg    = !!document.getElementById(`bubble-${seg.msgId}`);
+        return `
+          <div class="claim-card">
+            <div class="claim-status-icon">${icon}</div>
+            <div class="claim-card-body">
+              <div class="claim-text" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                <span>${escapeHtml(seg.text)}</span>
+                ${hasMsg ? `<button class="jump-to-btn" onclick="jumpToClaim('${seg.msgId}','${seg.id}')">↗ View</button>` : ''}
+              </div>
+              <div class="claim-meta">
+                <span class="claim-type-tag ${seg.flagType}">${typeLabel}</span>
+                <span>${seg.verified ? 'Verified ✓' : 'Pending verification'}</span>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    };
+
+    // Re-wire the nav button to the new version
+    document.getElementById('navVerifiedClaims')?.removeEventListener('click', showClaimsView);
+    document.getElementById('navVerifiedClaims')?.addEventListener('click', showClaimsView);
+
+    // Also save after star toggle
+    const _origRenderSessionList = renderSessionList;
+    renderSessionList = function(containerId, sessions) {
+      _origRenderSessionList(containerId, sessions);
+      // Re-wire star buttons to also persist
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      el.querySelectorAll('.star-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const s = SESSIONS[btn.dataset.sid];
+          if (s) { s.starred = !s.starred; renderSidebarSections(); persistSave(); }
+        }, { once: true });
+      });
+    };
+
+  </script>
+
+</body>
+</html>
